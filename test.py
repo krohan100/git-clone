@@ -18,7 +18,7 @@ from dqn_utils import seed_everything, write_info_file, generate_gif, save_check
 from env import Environment
 from replay import ReplayMemory
 import config
-
+import random
 uncertainity_save = []
 reward_save = []
 loss_save = []
@@ -188,19 +188,32 @@ class ActionGetter:
 
                 #### SAFE ####
                 if(STATUS != "SAFE"):
-                    mean_val = np.max(np.mean(vals.cpu().data.numpy(), axis=0))
-                    std_val = np.max(np.std(vals.cpu().data.numpy(), axis=0))
+                    try:
+                        vals_list = []
+                        for element in vals:
+                            vals_list.append(element.cpu().data.numpy())
+                        mean_val = np.max(np.mean(vals_list, axis=0))
+                        std_val = np.max(np.std(vals_list, axis=0))
 
-                    LCB = mean_val - 0.01 * std_val
+                        LCB = mean_val - 0.01 * std_val
 
+                        safe_vals_list = []
+                        safe_vals = safe_net(state, active_head)
+                        for element in safe_vals:
+                            safe_vals_list.append(element.cpu().data.numpy())
+                        safe_mean_val = np.max(np.mean(safe_vals_list, axis=0))
+                        safe_std_val = np.max(np.std(safe_vals_list, axis=0))
 
-                    if (LCB > vals[action].cpu().data.numpy()):
-                        vals = safe_net(state, active_head)
+                        safe_LCB = safe_mean_val - 0.01 * safe_std_val
 
-                        acts = [torch.argmax(vals[h], dim=1).item() for h in range(info['N_ENSEMBLE'])]
-                        data = Counter(acts)
-                        action = data.most_common(1)[0][0]
-                        UNCERTAINITY = True
+                        if (LCB < safe_LCB ):
+
+                            acts = [torch.argmax(safe_vals[h], dim=1).item() for h in range(info['N_ENSEMBLE'])]
+                            data = Counter(acts)
+                            action = data.most_common(1)[0][0]
+                            UNCERTAINITY = True
+                    except:
+                        print("error in LCB")
 
                 #### SAFE ####
 
